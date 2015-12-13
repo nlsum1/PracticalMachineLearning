@@ -1,0 +1,135 @@
+---
+title: "Practical Machine Learning Course Assignment"
+author: "Sum Nga Lai"
+date: "Saturday, December 12, 2015"
+output: html_document
+---
+
+##Executive summary
+Our goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.  
+
+We are provided with a set of training data, another set as testing data, in regards of the participants movement data. We are required to find the most accurate model to predict the 20 records of class in testing data.
+
+##Library used
+
+```{r}
+library(caret)
+library(rpart) 
+library(rpart.plot)
+library(randomForest)
+```
+
+###Loading data
+
+```{r}
+training = read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+testing = read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+
+```
+
+###Cleaning training and testing data
+
+We will remove some of the irrevelent variable: user_nam, raw_timestamp_part_1,raw_timestamp_part_2,  cvtd_timestamp,  new_window,	num_window
+
+Then, we will remove the variables that have 80% of their records as NA as they are not contributing to the model training process.
+
+```{r}
+#remove useless attribute: the first numbering row, user_nam, raw_timestamp_part_1,raw_timestamp_part_2,  cvtd_timestamp,	new_window,	num_window
+training   <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+
+
+##find out the variable that have more than 80% NA
+m <- c()
+for(i in 1:length(training))
+  {  
+    totalNa <- sum(is.na(training[,i]))
+    if((totalNa / nrow(training)) >.8)
+       {
+        m <- c(m, i)      
+       }
+  }
+
+##remove the variables with more than 80% NA
+training <- training[, -m]
+testing <- testing[,-m]
+
+dim(training)
+
+```
+
+###Cross Validation
+
+The training data will be subsampling into 60% of train set and 40% of test set. The model will be trained using the train set, later on to be predicted and tested on the test set. This is to check the accuracy of the trained model. The final chosen model will be later on used to predict the 20 records in the testing data.
+
+
+```{r}
+set.seed(5432)
+
+subtrain <- createDataPartition(training$classe, p=0.60, list=FALSE)
+trainset <- training[subtrain,]
+testset <- training[-subtrain,]
+
+```
+
+##Model 1: Decision Tree
+
+For the first model, we will use Decision Tree to train the model.
+
+```{r}
+
+modelrpart <- rpart(classe ~ ., data=trainset, method="class")
+predrpart<- predict(modelrpart, testset, type = "class")
+
+rpart.plot(modelrpart, main="Classification Tree")
+
+confusionMatrix(predrpart, testset$classe)
+
+```
+
+The Accuracy of the model using Decision Tree is 0.7374          
+
+##Model 2: Random Forest
+
+For the second model, we will use Random Forest instead.
+
+```{r}
+modelrf <- randomForest(classe ~. , data=trainset)
+
+predrf <- predict(modelrf, testset, type = "class")
+
+confusionMatrix(predrf, testset$classe)
+
+```
+
+The Accuracy of the model trained using Random Forest is 0.9925 
+
+Therefore, the model trained using Random Forest is chosen to predict the Testing date.
+
+##Expected out-of-sample error
+As we have a relatively large sample size which we have 19622 records in the training data, we can perform cross-validation checking on the data by subsampling 60% of the data as train set and 40% as test set. Variables that are irrelevant were removed to avoid affecting the model training process.
+
+The expected out-of-sample error is calculated as 1 - accuracy. As the accuracy of the model trained using Random Forest on our cross-validation data, which is 0.9925, the expected out-of-sample error will be 0.0075, which is relatively low. We can expect that the accuracy of the predicted outcome will be consistently high.
+
+##Generate predicted result of the testing data
+
+Using the chosen model, we will generate the predicted outcome of the testing data into txt files.
+
+
+```{r}
+
+predBestFit <- predict(modelrf, testing, type = "class")
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predBestFit)
+
+```
+
+
